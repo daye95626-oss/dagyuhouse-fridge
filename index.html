@@ -64,8 +64,7 @@
 
   <div class="diagram">
     <div class="door-row">
-      <button class="door-btn door-top" data-scroll="fridge-left"><span>냉장실 좌</span><span class="door-count" id="cnt-fridge-left">0개</span></button>
-      <button class="door-btn door-top" data-scroll="fridge-right"><span>냉장실 우</span><span class="door-count" id="cnt-fridge-right">0개</span></button>
+      <button class="door-btn door-top" data-scroll="fridge"><span>냉장실</span><span class="door-count" id="cnt-fridge">0개</span></button>
     </div>
     <div class="door-row">
       <button class="door-btn door-bottom" data-scroll="freezer-left"><span>냉동실 좌</span><span class="door-count" id="cnt-freezer-left">0개</span></button>
@@ -94,24 +93,25 @@
 
 <script>
 const ZONES = [
-  { key:"fridge-left", label:"냉장실 좌", type:"fresh", row:"top" },
-  { key:"fridge-right", label:"냉장실 우", type:"fresh", row:"top" },
+  { key:"fridge", label:"냉장실", type:"fresh", row:"top" },
   { key:"freezer-left", label:"냉동실 좌", type:"frozen", row:"bottom" },
   { key:"freezer-right", label:"냉동실 우", type:"frozen", row:"bottom" },
 ];
 const ZONE_MAP = Object.fromEntries(ZONES.map(z => [z.key, z]));
+// old layout had fridge-left/fridge-right — merge any saved items from those into "fridge"
+const ZONE_MIGRATION = { "fridge-left": "fridge", "fridge-right": "fridge" };
 
 const STARTER_ITEMS = [
-  { name:"해찬들 태양초 고추장", zone:"fridge-left", shelfLifeDays:180 },
-  { name:"김치", zone:"fridge-left", shelfLifeDays:30 },
-  { name:"테라 맥주캔", zone:"fridge-left", shelfLifeDays:90 },
-  { name:"코카콜라 페트", zone:"fridge-left", shelfLifeDays:120 },
-  { name:"반찬 (밑반찬통 여러개)", zone:"fridge-left", shelfLifeDays:7 },
-  { name:"신선야채실 - 야채", zone:"fridge-left", shelfLifeDays:7 },
-  { name:"신선육류실 - 육류", zone:"fridge-right", shelfLifeDays:5 },
-  { name:"마요네즈", zone:"fridge-right", shelfLifeDays:180 },
-  { name:"머스타드 (Maille)", zone:"fridge-right", shelfLifeDays:365 },
-  { name:"장류/소스병 여러개", zone:"fridge-right", shelfLifeDays:180 },
+  { name:"해찬들 태양초 고추장", zone:"fridge", shelfLifeDays:180 },
+  { name:"김치", zone:"fridge", shelfLifeDays:30 },
+  { name:"테라 맥주캔", zone:"fridge", shelfLifeDays:90 },
+  { name:"코카콜라 페트", zone:"fridge", shelfLifeDays:120 },
+  { name:"반찬 (밑반찬통 여러개)", zone:"fridge", shelfLifeDays:7 },
+  { name:"신선야채실 - 야채", zone:"fridge", shelfLifeDays:7 },
+  { name:"신선육류실 - 육류", zone:"fridge", shelfLifeDays:5 },
+  { name:"마요네즈", zone:"fridge", shelfLifeDays:180 },
+  { name:"머스타드 (Maille)", zone:"fridge", shelfLifeDays:365 },
+  { name:"장류/소스병 여러개", zone:"fridge", shelfLifeDays:180 },
   { name:"들깨가루", zone:"freezer-right", expiryDate:"" },
   { name:"냉동 만두/찐빵류", zone:"freezer-left", expiryDate:"" },
   { name:"냉동 육류", zone:"freezer-left", expiryDate:"" },
@@ -169,8 +169,10 @@ function showError(msg){
 
 async function init(){
   const loaded = await loadItems();
-  if (loaded) items = loaded;
-  else {
+  if (loaded) {
+    items = loaded.map(it => ZONE_MIGRATION[it.zone] ? { ...it, zone: ZONE_MIGRATION[it.zone] } : it);
+    await saveItems(items);
+  } else {
     items = STARTER_ITEMS.map((s,i) => ({
       id:`seed_${i}`, name:s.name, zone:s.zone, addedDate:todayISO(),
       shelfLifeDays:s.shelfLifeDays ?? null, expiryDate:s.expiryDate ?? null,
@@ -190,6 +192,7 @@ function render(){
     const sec = document.createElement("div");
     sec.className = "section";
     sec.id = `sec-${z.key}`;
+    if (z.key === "fridge") sec.style.gridColumn = "1 / -1";
     const list = items.filter(i => i.zone === z.key).sort((a,b) => {
       if (z.type === "fresh") return daysBetween(b.addedDate, todayISO())/(b.shelfLifeDays||7) - daysBetween(a.addedDate, todayISO())/(a.shelfLifeDays||7);
       const da = a.expiryDate ? daysBetween(todayISO(), a.expiryDate) : 9999;
